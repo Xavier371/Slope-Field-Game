@@ -36,6 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
         s = s.replace(new RegExp(`([0-9xy\)])\s*(?=${fn}\\b)`, 'gi'), '$1*');
         // Function name followed by bare variable: sin x -> sin(x)
         s = s.replace(new RegExp(`\\b(${fn})\\s*([xy])`, 'gi'), '$1($2)');
+        // Map ln(x) -> log(x) (natural log)
+        s = s.replace(/\bln\s*\(/gi, 'log(');
+        // Support log-base notation: loga(b) -> log(b, a)
+        // Simple (non-nested) argument matcher first
+        s = s.replace(/\blog\s*([A-Za-z]|\d+(?:\.\d+)?)\s*\(([^()]+)\)/gi, (m, base, arg) => `log(${arg}, ${base})`);
+        // Single-argument log assumes base 10: log(b) -> log(b, 10)
+        s = s.replace(/\blog\s*\(([^()]+)\)/gi, (m, arg) => `log(${arg}, 10)`);
         // closing and opening parenthesis: )( -> )*(
         s = s.replace(/\)\s*\(/g, ')*(');
         return s;
@@ -43,12 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ensure canvas is square and scaled for device pixel ratio
     function ensureCanvasSize() {
-        // Use CSS to keep square and a fixed max width. Here we just read CSS pixels.
-        const cssW = canvas.clientWidth || 480;
-        const cssH = canvas.clientHeight || cssW;
-        // No DPR scaling to avoid overlay misalignment across browsers
+        // Rely on canvas intrinsic size for drawing coordinates to keep line widths consistent.
+        const pxW = canvas.width || 480;
+        const pxH = canvas.height || 480;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        return { cssWidth: cssW, cssHeight: cssH };
+        return { pxWidth: pxW, pxHeight: pxH };
     }
 
     const plotVectorField = () => {
@@ -97,9 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // --- 3. Setup canvas and coordinate transformation ---
-        const { cssWidth, cssHeight } = ensureCanvasSize();
-        const width = cssWidth;
-        const height = cssHeight;
+        const { pxWidth, pxHeight } = ensureCanvasSize();
+        const width = pxWidth;
+        const height = pxHeight;
         ctx.clearRect(0, 0, width, height);
 
         const xRange = xMax - xMin;
@@ -112,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const toCanvasY = (y) => height - (y - yMin) * yPixelScale;
 
         // --- 4. Draw grid and axes ---
-        drawAxes(toCanvasX, toCanvasY);
+        drawAxes(toCanvasX, toCanvasY, width, height);
         
         // --- 5. Draw the direction field ---
         const arrowLength = 0.4; // In world coordinates
@@ -256,22 +262,22 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.stroke();
     }
 
-    function drawAxes(toCanvasX, toCanvasY) {
+    function drawAxes(toCanvasX, toCanvasY, width, height) {
         ctx.beginPath();
         ctx.strokeStyle = '#aaa';
         ctx.lineWidth = 1;
         // X-Axis
         ctx.moveTo(0, toCanvasY(0));
-        ctx.lineTo(canvas.width, toCanvasY(0));
+        ctx.lineTo(width, toCanvasY(0));
         // Y-Axis
         ctx.moveTo(toCanvasX(0), 0);
-        ctx.lineTo(toCanvasX(0), canvas.height);
+        ctx.lineTo(toCanvasX(0), height);
         ctx.stroke();
 
         // Axis labels
         ctx.fillStyle = '#555';
         ctx.font = '12px Arial';
-        ctx.fillText('x', canvas.width - 15, toCanvasY(0) - 10);
+        ctx.fillText('x', width - 15, toCanvasY(0) - 10);
         ctx.fillText('y', toCanvasX(0) + 10, 15);
     }
     
@@ -303,7 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Game state (random start + highlighted edge segment) ---
-    let highlightedSegment = -1; // 0..7
+    let highlightedSegment = -1; // primary target 0..7
+    let highlightedSegmentB = -1; // secondary target 0..7, distinct
     let startPoint = null; // {x, y} in world units
     let animFrame = null;
     let currentField = null;
@@ -315,27 +322,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const height = canvas.height;
 
         // Highlight chosen edge half-segment
-        if (highlightedSegment >= 0) {
+        const targets = [highlightedSegment, highlightedSegmentB].filter(v => v >= 0);
+        if (targets.length > 0) {
             const midX = width / 2;
             const midY = height / 2;
-            ctx.save();
-            // Restore previous highlighter style: soft, fixed band
             const band = 14; // px
-            ctx.fillStyle = 'rgba(255, 235, 59, 0.28)';
-            ctx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            switch (highlightedSegment) {
-                case 0: ctx.fillRect(0, 0, midX, band); ctx.beginPath(); ctx.moveTo(6, band/2); ctx.lineTo(midX - 6, band/2); ctx.stroke(); break;
-                case 1: ctx.fillRect(midX, 0, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, band/2); ctx.lineTo(width - 6, band/2); ctx.stroke(); break;
-                case 2: ctx.fillRect(0, height - band, midX, band); ctx.beginPath(); ctx.moveTo(6, height - band/2); ctx.lineTo(midX - 6, height - band/2); ctx.stroke(); break;
-                case 3: ctx.fillRect(midX, height - band, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, height - band/2); ctx.lineTo(width - 6, height - band/2); ctx.stroke(); break;
-                case 4: ctx.fillRect(0, 0, band, midY); ctx.beginPath(); ctx.moveTo(band/2, 6); ctx.lineTo(band/2, midY - 6); ctx.stroke(); break;
-                case 5: ctx.fillRect(0, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(band/2, midY + 6); ctx.lineTo(band/2, height - 6); ctx.stroke(); break;
-                case 6: ctx.fillRect(width - band, 0, band, midY); ctx.beginPath(); ctx.moveTo(width - band/2, 6); ctx.lineTo(width - band/2, midY - 6); ctx.stroke(); break;
-                case 7: ctx.fillRect(width - band, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(width - band/2, midY + 6); ctx.lineTo(width - band/2, height - 6); ctx.stroke(); break;
+            for (const seg of targets) {
+                ctx.save();
+                // Soft highlighter band
+                ctx.fillStyle = 'rgba(255, 235, 59, 0.28)';
+                ctx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                switch (seg) {
+                    case 0: ctx.fillRect(0, 0, midX, band); ctx.beginPath(); ctx.moveTo(6, band/2); ctx.lineTo(midX - 6, band/2); ctx.stroke(); break;
+                    case 1: ctx.fillRect(midX, 0, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, band/2); ctx.lineTo(width - 6, band/2); ctx.stroke(); break;
+                    case 2: ctx.fillRect(0, height - band, midX, band); ctx.beginPath(); ctx.moveTo(6, height - band/2); ctx.lineTo(midX - 6, height - band/2); ctx.stroke(); break;
+                    case 3: ctx.fillRect(midX, height - band, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, height - band/2); ctx.lineTo(width - 6, height - band/2); ctx.stroke(); break;
+                    case 4: ctx.fillRect(0, 0, band, midY); ctx.beginPath(); ctx.moveTo(band/2, 6); ctx.lineTo(band/2, midY - 6); ctx.stroke(); break;
+                    case 5: ctx.fillRect(0, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(band/2, midY + 6); ctx.lineTo(band/2, height - 6); ctx.stroke(); break;
+                    case 6: ctx.fillRect(width - band, 0, band, midY); ctx.beginPath(); ctx.moveTo(width - band/2, 6); ctx.lineTo(width - band/2, midY - 6); ctx.stroke(); break;
+                    case 7: ctx.fillRect(width - band, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(width - band/2, midY + 6); ctx.lineTo(width - band/2, height - 6); ctx.stroke(); break;
+                }
+                ctx.restore();
             }
-            ctx.restore();
         }
 
         // Draw starting point
@@ -356,6 +366,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ry = world.yMin + margin * (world.yMax - world.yMin) + Math.random() * (1 - 2 * margin) * (world.yMax - world.yMin);
         startPoint = { x: rx, y: ry };
         highlightedSegment = Math.floor(Math.random() * 8);
+        // pick a distinct second segment
+        do {
+            highlightedSegmentB = Math.floor(Math.random() * 8);
+        } while (highlightedSegmentB === highlightedSegment);
         plotVectorField();
         drawHighlightAndStart();
         const msg = document.getElementById('error-message');
@@ -393,20 +407,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        let px = startPoint.x;
-        let py = startPoint.y;
         const step = (world.xMax - world.xMin) / 420; // small world step for smooth motion
+
+        // Hide messages while animating
+        const msg = document.getElementById('error-message');
+        const ok = document.getElementById('success-message');
+        const note = document.getElementById('notice-message');
+        if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+        if (ok) { ok.style.display = 'none'; ok.textContent = ''; }
+        if (note) { note.style.display = 'none'; note.textContent = ''; }
+
+        // Two states: forward (+1) and backward (-1)
+        const stateF = { x: startPoint.x, y: startPoint.y, dir: 1, done: false, seg: -1 };
+        const stateB = { x: startPoint.x, y: startPoint.y, dir: -1, done: false, seg: -1 };
+
+        // Last drawn pixel for each
+        const viewW = canvas.width || 480;
+        const viewH = canvas.height || viewW;
+        let lastFx = (stateF.x - world.xMin) * (viewW / (world.xMax - world.xMin));
+        let lastFy = viewH - (stateF.y - world.yMin) * (viewH / (world.yMax - world.yMin));
+        let lastBx = lastFx;
+        let lastBy = lastFy;
 
         ctx.save();
         ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        let cx0 = (px - world.xMin) * (canvas.width / (world.xMax - world.xMin));
-        let cy0 = canvas.height - (py - world.yMin) * (canvas.height / (world.yMax - world.yMin));
-        ctx.moveTo(cx0, cy0);
-
-        const msg = document.getElementById('error-message');
-        if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+        const strokeWidth = 2;
+        ctx.lineWidth = strokeWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
         function classifyExitAtWall(x, y) {
             const tol = 1e-9;
@@ -420,76 +448,89 @@ document.addEventListener('DOMContentLoaded', () => {
             return -1;
         }
 
-        function frame() {
-            // Vector along field: v = (1, f(x,y)) normalized
+        function stepState(st) {
+            if (st.done) return;
+            // Vector along field: v = (dir, dir*f(x,y)) normalized
             let slope;
-            try { slope = f(px, py); } catch (_) { slope = NaN; }
+            try { slope = f(st.x, st.y); } catch (_) { slope = NaN; }
             let vx, vy;
             if (Number.isFinite(slope)) {
-                vx = 1; vy = slope;
+                vx = st.dir; vy = st.dir * slope;
             } else if (slope === Infinity || slope === -Infinity) {
-                vx = 0; vy = Math.sign(slope) || 1;
+                vx = 0; vy = st.dir * (Math.sign(slope) || 1);
             } else {
-                // try small perturbation
                 const eps = Math.max((world.yMax - world.yMin) * 1e-6, 1e-6);
-                const s1 = f(px, py + eps);
-                const s2 = f(px, py - eps);
+                const s1 = f(st.x, st.y + eps);
+                const s2 = f(st.x, st.y - eps);
                 const s = Number.isFinite(s1) ? s1 : (Number.isFinite(s2) ? s2 : 0);
-                vx = 1; vy = s;
+                vx = st.dir; vy = st.dir * s;
             }
             const len = Math.hypot(vx, vy) || 1;
-            const ux = (vx / len);
-            const uy = (vy / len);
+            const ux = vx / len;
+            const uy = vy / len;
 
-            // Compute exact intersection with box during this step
-            let tHit = step + 1; // larger than step means no hit this frame
-            if (ux > 0) tHit = Math.min(tHit, (world.xMax - px) / ux);
-            if (ux < 0) tHit = Math.min(tHit, (world.xMin - px) / ux);
-            if (uy > 0) tHit = Math.min(tHit, (world.yMax - py) / uy);
-            if (uy < 0) tHit = Math.min(tHit, (world.yMin - py) / uy);
+            // Compute hit this frame
+            let tHit = step + 1;
+            if (ux > 0) tHit = Math.min(tHit, (world.xMax - st.x) / ux);
+            if (ux < 0) tHit = Math.min(tHit, (world.xMin - st.x) / ux);
+            if (uy > 0) tHit = Math.min(tHit, (world.yMax - st.y) / uy);
+            if (uy < 0) tHit = Math.min(tHit, (world.yMin - st.y) / uy);
 
-            if (tHit <= step && tHit >= 0) {
-                // Clamp exactly to the wall
-                px = px + ux * tHit;
-                py = py + uy * tHit;
-            } else {
-                // Regular step
-                px = px + ux * step;
-                py = py + uy * step;
-            }
+            let nx, ny;
+            if (tHit <= step && tHit >= 0) { nx = st.x + ux * tHit; ny = st.y + uy * tHit; st.done = true; }
+            else { nx = st.x + ux * step; ny = st.y + uy * step; }
 
-            // Clamp numeric drift inside the box
-            px = Math.min(Math.max(px, world.xMin), world.xMax);
-            py = Math.min(Math.max(py, world.yMin), world.yMax);
+            nx = Math.min(Math.max(nx, world.xMin), world.xMax);
+            ny = Math.min(Math.max(ny, world.yMin), world.yMax);
 
-            const seg = (tHit <= step && tHit >= 0) ? classifyExitAtWall(px, py) : -1;
-            const cx = (px - world.xMin) * (canvas.width / (world.xMax - world.xMin));
-            const cy = canvas.height - (py - world.yMin) * (canvas.height / (world.yMax - world.yMin));
-            ctx.lineTo(cx, cy);
+            const cx = (nx - world.xMin) * (viewW / (world.xMax - world.xMin));
+            const cy = viewH - (ny - world.yMin) * (viewH / (world.yMax - world.yMin));
+
+            // Draw segment
+            ctx.beginPath();
+            if (st.dir === 1) { ctx.moveTo(lastFx, lastFy); ctx.lineTo(cx, cy); lastFx = cx; lastFy = cy; }
+            else { ctx.moveTo(lastBx, lastBy); ctx.lineTo(cx, cy); lastBx = cx; lastBy = cy; }
             ctx.stroke();
-            // Moving red dot
+
+            st.x = nx; st.y = ny;
+            if (st.done) {
+                st.seg = classifyExitAtWall(st.x, st.y);
+            }
+        }
+
+        function frame() {
+            stepState(stateF);
+            stepState(stateB);
+
+            // Draw moving dots on both paths with same radius as stroke to avoid perceived thickness mismatch
             ctx.beginPath();
             ctx.fillStyle = 'crimson';
-            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            let cx = (stateF.x - world.xMin) * (viewW / (world.xMax - world.xMin));
+            let cy = viewH - (stateF.y - world.yMin) * (viewH / (world.yMax - world.yMin));
+            ctx.arc(cx, cy, strokeWidth, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            cx = (stateB.x - world.xMin) * (viewW / (world.xMax - world.xMin));
+            cy = viewH - (stateB.y - world.yMin) * (viewH / (world.yMax - world.yMin));
+            ctx.arc(cx, cy, strokeWidth, 0, Math.PI * 2);
             ctx.fill();
 
-            if (seg >= 0) {
+            if (stateF.done && stateB.done) {
                 isAnimating = false;
                 ctx.restore();
-                const win = seg === highlightedSegment;
                 const ok = document.getElementById('success-message');
                 const note = document.getElementById('notice-message');
-                // Clear all messages first
-                if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+                // Determine win: exits must match both highlighted targets (order-agnostic)
+                const exits = [stateF.seg, stateB.seg].sort();
+                const targets = [highlightedSegment, highlightedSegmentB].sort();
+                const isWin = exits.length === 2 && exits[0] === targets[0] && exits[1] === targets[1];
                 if (ok) { ok.style.display = 'none'; ok.textContent = ''; }
                 if (note) { note.style.display = 'none'; note.textContent = ''; }
-
-                if (win) {
+                if (isWin) {
                     if (ok) { ok.style.display = 'block'; ok.textContent = 'You Win!'; }
                 } else {
                     if (note) { note.style.display = 'block'; note.textContent = 'Try another function.'; }
                 }
-                // On miss, keep the red path and overlays as-is; only show gray banner
                 return;
             }
             animFrame = requestAnimationFrame(frame);
