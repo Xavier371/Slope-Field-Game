@@ -456,9 +456,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Speed: faster on phones, slightly faster on desktop
+        // Speed: target <= ~3s total trace; faster on phones
         const isPhone = window.innerWidth <= 520;
-        const step = (world.xMax - world.xMin) / (isPhone ? 180 : 300);
+        const step = (world.xMax - world.xMin) / (isPhone ? 120 : 200);
 
         // Ensure start is in a finite-slope region; if not, nudge slightly
         const finiteAt = (x, y) => {
@@ -674,8 +674,12 @@ document.addEventListener('DOMContentLoaded', () => {
     buttons.go?.addEventListener('touchend', (e) => { e.preventDefault(); handleGo(); });
 
     // Redraw on resize/rotation
-    // Minimal resize handler: re-render once
-    window.addEventListener('resize', () => { plotVectorField(); drawHighlightAndStart(); });
+    // Minimal resize handler: re-render once (ignore during active trace)
+    window.addEventListener('resize', () => {
+        if (isAnimating) return; 
+        plotVectorField();
+        drawHighlightAndStart();
+    });
 
     // Initial cursor style for panning
     canvas.style.cursor = 'grab';
