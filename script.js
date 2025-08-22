@@ -41,6 +41,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return s;
     }
 
+    // Ensure canvas is square and scaled for device pixel ratio
+    function ensureCanvasSize() {
+        const dpr = window.devicePixelRatio || 1;
+        // Force square CSS box if aspect-ratio unsupported
+        const cssW = canvas.clientWidth || canvas.width;
+        canvas.style.height = cssW + 'px';
+        const cssH = canvas.clientHeight || canvas.height;
+        const needW = Math.floor(cssW * dpr);
+        const needH = Math.floor(cssH * dpr);
+        if (canvas.width !== needW || canvas.height !== needH) {
+            canvas.width = needW;
+            canvas.height = needH;
+        }
+        // Reset transform and scale drawing to CSS pixels
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        return { cssWidth: cssW, cssHeight: cssH };
+    }
+
     const plotVectorField = () => {
         // --- 1. Get user inputs and clear errors ---
         const rawEq = (inputs.equation.value || '').trim();
@@ -94,17 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // --- 3. Setup canvas and coordinate transformation ---
-        // Auto-scale canvas for device pixel ratio (high-DPI/mobile)
-        const dpr = window.devicePixelRatio || 1;
-        const cssWidth = canvas.clientWidth || canvas.width;
-        const cssHeight = canvas.clientHeight || canvas.height;
-        if (canvas.width !== Math.floor(cssWidth * dpr) || canvas.height !== Math.floor(cssHeight * dpr)) {
-            canvas.width = Math.floor(cssWidth * dpr);
-            canvas.height = Math.floor(cssHeight * dpr);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // scale drawing to CSS pixels
-        }
-        const width = canvas.width / dpr;
-        const height = canvas.height / dpr;
+        const { cssWidth, cssHeight } = ensureCanvasSize();
+        const width = cssWidth;
+        const height = cssHeight;
         ctx.clearRect(0, 0, width, height);
 
         const xRange = xMax - xMin;
@@ -558,6 +569,20 @@ document.addEventListener('DOMContentLoaded', () => {
     buttons.go?.addEventListener('click', handleGo);
     // Touch support for Go
     buttons.go?.addEventListener('touchend', (e) => { e.preventDefault(); handleGo(); });
+
+    // Redraw on resize/rotation
+    const onResize = () => {
+        // keep current start/highlight; just re-render
+        plotVectorField();
+        drawHighlightAndStart();
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => onResize());
+        ro.observe(canvas);
+        window.addEventListener('orientationchange', onResize);
+    } else {
+        window.addEventListener('resize', onResize);
+    }
 
     // Initial cursor style for panning
     canvas.style.cursor = 'grab';
