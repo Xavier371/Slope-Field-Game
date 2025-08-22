@@ -44,10 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure canvas is square and scaled for device pixel ratio
     function ensureCanvasSize() {
         const dpr = window.devicePixelRatio || 1;
-        // Force square CSS box if aspect-ratio unsupported
-        const cssW = canvas.clientWidth || canvas.width;
-        canvas.style.height = cssW + 'px';
-        const cssH = canvas.clientHeight || canvas.height;
+        // Force square CSS box, cap to 480px
+        const parent = canvas.parentElement;
+        const parentW = parent ? parent.clientWidth : (canvas.clientWidth || canvas.width);
+        const cssW = Math.min(parentW, 480);
+        const cssH = cssW; // enforce square
+        canvas.style.height = cssH + 'px';
+        canvas.style.width = cssW + 'px';
         const needW = Math.floor(cssW * dpr);
         const needH = Math.floor(cssH * dpr);
         if (canvas.width !== needW || canvas.height !== needH) {
@@ -55,8 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = needH;
         }
         // Reset transform and scale drawing to CSS pixels
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.scale(dpr, dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         return { cssWidth: cssW, cssHeight: cssH };
     }
 
