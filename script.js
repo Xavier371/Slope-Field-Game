@@ -9,8 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Control buttons ---
     const buttons = {
-        reset: document.getElementById('reset'),
-        go: document.getElementById('go')
+        reset: document.getElementById('reset')
     };
 
     // --- World coordinates state (window) ---
@@ -46,6 +45,157 @@ document.addEventListener('DOMContentLoaded', () => {
         // closing and opening parenthesis: )( -> )*(
         s = s.replace(/\)\s*\(/g, ')*(');
         return s;
+    }
+
+    // --- Immediate static path rendering in both directions ---
+    function renderStaticTrace() {
+        if (!startPoint) return;
+
+        // Use compiled field if available; otherwise compile from input
+        let f = currentField;
+        if (typeof f !== 'function') {
+            try {
+                const preprocessed = preprocessEquation((inputs.equation.value || '0').trim() || '0');
+                const node = math.parse(preprocessed);
+                const compiled = node.compile();
+                f = (x, y) => compiled.evaluate({ x, y });
+            } catch (_) {
+                const msg = document.getElementById('error-message');
+                if (msg) { msg.textContent = 'Try another function: invalid or unsupported expression.'; msg.style.display = 'block'; }
+                return;
+            }
+        }
+
+        // Step size controls smoothness
+        const isPhone = window.innerWidth <= 520;
+        const step = (world.xMax - world.xMin) / (isPhone ? 140 : 220);
+
+        // If starting on a non-finite slope, gently nudge
+        const finiteAt = (x, y) => {
+            try { return toFinite(f(x, y)) != null; } catch (_) { return false; }
+        };
+        if (!finiteAt(startPoint.x, startPoint.y)) {
+            const span = Math.max(world.xMax - world.xMin, world.yMax - world.yMin);
+            const eps = span * 1e-3;
+            const offsets = [[eps,0],[-eps,0],[0,eps],[0,-eps],[eps,eps],[-eps,eps],[eps,-eps],[-eps,-eps]];
+            for (const [dx, dy] of offsets) {
+                const nx = Math.min(Math.max(startPoint.x + dx, world.xMin), world.xMax);
+                const ny = Math.min(Math.max(startPoint.y + dy, world.yMin), world.yMax);
+                if (finiteAt(nx, ny)) { startPoint = { x: nx, y: ny }; break; }
+            }
+        }
+
+        const viewW = canvas.width || 480;
+        const viewH = canvas.height || viewW;
+        const toPx = (x, y) => ([
+            (x - world.xMin) * (viewW / (world.xMax - world.xMin)),
+            viewH - (y - world.yMin) * (viewH / (world.yMax - world.yMin))
+        ]);
+
+        function classifyExitAtWall(x, y) {
+            const tol = 1e-9;
+            const midX = (world.xMin + world.xMax) / 2;
+            const midY = (world.yMin + world.yMax) / 2;
+            if (Math.abs(y - world.yMax) <= tol) return x <= midX ? 0 : 1;
+            if (Math.abs(y - world.yMin) <= tol) return x <= midX ? 2 : 3;
+            if (Math.abs(x - world.xMin) <= tol) return y >= midY ? 4 : 5;
+            if (Math.abs(x - world.xMax) <= tol) return y >= midY ? 6 : 7;
+            return -1;
+        }
+
+        function trace(dir) {
+            let x = startPoint.x;
+            let y = startPoint.y;
+            let [px, py] = toPx(x, y);
+            let seg = -1;
+            let steps = 0;
+            const maxSteps = 8000;
+
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            while (steps < maxSteps) {
+                steps++;
+                let rawSlope = null;
+                try { rawSlope = f(x, y); } catch (_) { rawSlope = null; }
+                if (rawSlope === Infinity || rawSlope === -Infinity) { seg = classifyExitAtWall(x, y); break; }
+                let slope = toFinite(rawSlope);
+                if (slope == null) {
+                    const span = Math.max(world.xMax - world.xMin, world.yMax - world.yMin);
+                    const eps = span * 1e-3;
+                    const offsets = [[eps,0],[-eps,0],[0,eps],[0,-eps],[eps,eps],[-eps,eps],[eps,-eps],[-eps,-eps]];
+                    let recovered = false;
+                    for (const [dx, dy] of offsets) {
+                        try {
+                            const rs = f(x + dx, y + dy);
+                            if (rs === Infinity || rs === -Infinity) { slope = null; break; }
+                            const num = toFinite(rs);
+                            if (num != null) { slope = num; recovered = true; break; }
+                        } catch (_) {}
+                    }
+                    if (!recovered || slope == null) { seg = classifyExitAtWall(x, y); break; }
+                }
+
+                let vx = dir;
+                let vy = dir * slope;
+                const len = Math.hypot(vx, vy) || 1;
+                const ux = vx / len;
+                const uy = vy / len;
+
+                let tHit = step + 1;
+                if (ux > 0) tHit = Math.min(tHit, (world.xMax - x) / ux);
+                if (ux < 0) tHit = Math.min(tHit, (world.xMin - x) / ux);
+                if (uy > 0) tHit = Math.min(tHit, (world.yMax - y) / uy);
+                if (uy < 0) tHit = Math.min(tHit, (world.yMin - y) / uy);
+
+                let nx, ny;
+                if (tHit <= step && tHit >= 0) { nx = x + ux * tHit; ny = y + uy * tHit; }
+                else { nx = x + ux * step; ny = y + uy * step; }
+
+                nx = Math.min(Math.max(nx, world.xMin), world.xMax);
+                ny = Math.min(Math.max(ny, world.yMin), world.yMax);
+
+                const [cx, cy] = toPx(nx, ny);
+                ctx.lineTo(cx, cy);
+
+                x = nx; y = ny;
+                if (tHit <= step && tHit >= 0) { seg = classifyExitAtWall(x, y); break; }
+                if (x <= world.xMin || x >= world.xMax || y <= world.yMin || y >= world.yMax) { seg = classifyExitAtWall(x, y); break; }
+            }
+            ctx.stroke();
+            return seg;
+        }
+
+        // Clear messages before rendering and set stroke style
+        const msg = document.getElementById('error-message');
+        const ok = document.getElementById('success-message');
+        const note = document.getElementById('notice-message');
+        if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+        if (ok) { ok.style.display = 'none'; ok.textContent = ''; }
+        if (note) { note.style.display = 'none'; note.textContent = ''; }
+
+        ctx.save();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const segF = trace(1);
+        const segB = trace(-1);
+
+        ctx.restore();
+
+        // Evaluate win/lose
+        const exits = [segF, segB].sort();
+        const targets = [highlightedSegment, highlightedSegmentB].sort();
+        const isWin = exits.length === 2 && exits[0] === targets[0] && exits[1] === targets[1];
+        if (isWin) {
+            if (ok) { ok.style.display = 'block'; ok.textContent = 'You Win!'; }
+        } else {
+            if (note) { note.style.display = 'block'; note.textContent = 'Try another function.'; }
+        }
+
+        // Keep start dot and highlights on top
+        drawHighlightAndStart();
     }
 
     // Ensure canvas is square and scaled for device pixel ratio
@@ -185,8 +335,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Re-draw overlay (field already drawn)
             drawHighlightAndStart();
         }
-        // store field function for Go
+        // store field function for rendering
         currentField = f;
+        // Always render the static trace after field is drawn
+        if (startPoint) {
+            renderStaticTrace();
+        }
     };
 
     function plotSolutionCurve(f, x0, y0, xMin, xMax, yMin, yMax, toCanvasX, toCanvasY) {
@@ -341,9 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let highlightedSegment = -1; // primary target 0..7
     let highlightedSegmentB = -1; // secondary target 0..7, distinct
     let startPoint = null; // {x, y} in world units
-    let animFrame = null;
     let currentField = null;
-    let isAnimating = false;
 
     // Helper: coerce math.js outputs to a finite JS number; otherwise return null
     function toFinite(val) {
@@ -423,6 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
         drawHighlightAndStart();
         const msg = document.getElementById('error-message');
         if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+        renderStaticTrace();
     }
 
     function segmentForExit(x, y) {
@@ -437,8 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function goAlongField() {
         if (!startPoint) return;
-        if (isAnimating && animFrame) cancelAnimationFrame(animFrame);
-        isAnimating = true;
+        // Deprecated animated mode; call static renderer instead
+        return renderStaticTrace();
 
         // Use the last compiled field function from the plot
         let f = currentField;
@@ -456,7 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Speed: target <= ~3s total trace; faster on phones
+        // Step size (kept for compatibility but unused in static caller)
         const isPhone = window.innerWidth <= 520;
         const step = (world.xMax - world.xMin) / (isPhone ? 120 : 200);
 
@@ -475,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Clear messages while animating (allow scroll/zoom; tracing uses intrinsic canvas coordinates)
+        // Clear messages
         const msg = document.getElementById('error-message');
         const ok = document.getElementById('success-message');
         const note = document.getElementById('notice-message');
@@ -606,9 +759,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return;
             }
-            animFrame = requestAnimationFrame(frame);
+            // no-op in static mode
         }
-        animFrame = requestAnimationFrame(frame);
+        // no-op in static mode
     }
 
     // --- Add event listeners for automatic updates ---
@@ -620,15 +773,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const lowered = cur.toLowerCase();
                 if (cur !== lowered) inputs.equation.value = lowered;
             }
-            // Stop animation and reset to original start on function change
-            if (isAnimating && animFrame) cancelAnimationFrame(animFrame);
-            isAnimating = false;
             if (startPoint) {
                 // Redraw field and overlay from original start
                 plotVectorField();
                 drawHighlightAndStart();
+                renderStaticTrace();
             } else {
                 plotVectorField();
+                renderStaticTrace();
             }
         });
     }
@@ -648,10 +800,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ensure default cursor (not grab)
     canvas.style.cursor = 'default';
 
-    // Reset and Go buttons
+    // Reset button
     buttons.reset?.addEventListener('click', () => {
-        if (isAnimating && animFrame) cancelAnimationFrame(animFrame);
-        isAnimating = false;
         world = { ...defaultWorld };
         startPoint = null;
         highlightedSegment = -1;
@@ -659,30 +809,17 @@ document.addEventListener('DOMContentLoaded', () => {
         randomizeGame();
     });
 
-    function handleGo() {
-        if (isAnimating && animFrame) cancelAnimationFrame(animFrame);
-        isAnimating = false;
-        if (!startPoint || highlightedSegment < 0) {
-            randomizeGame();
-        }
-        // Always redraw field and overlay, then animate
-        plotVectorField();
-        goAlongField();
-    }
-    buttons.go?.addEventListener('click', handleGo);
-    // Touch support for Go
-    buttons.go?.addEventListener('touchend', (e) => { e.preventDefault(); handleGo(); });
-
     // Redraw on resize/rotation
-    // Minimal resize handler: re-render once (ignore during active trace)
+    // Minimal resize handler: re-render once
     window.addEventListener('resize', () => {
-        if (isAnimating) return; 
         plotVectorField();
         drawHighlightAndStart();
+        renderStaticTrace();
     });
 
     // Initial cursor style for panning
     canvas.style.cursor = 'grab';
 
     plotVectorField(); // Initial plot (randomize will be forced if needed)
+    if (startPoint) renderStaticTrace();
 });
