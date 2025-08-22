@@ -337,18 +337,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const midX = width / 2;
             const midY = height / 2;
             ctx.save();
-            // Highlighter-style filled rectangle (thicker, no stroke glow)
-            const band = Math.floor(Math.min(width, height) * 0.12); // 12% thickness of canvas
-            ctx.fillStyle = 'rgba(255, 235, 59, 0.35)';
+            // Restore previous highlighter style: soft, fixed band
+            const band = 14; // px
+            ctx.fillStyle = 'rgba(255, 235, 59, 0.28)';
+            ctx.strokeStyle = 'rgba(255, 235, 59, 0.9)';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
             switch (highlightedSegment) {
-                case 0: ctx.fillRect(0, 0, midX, band); break; // top-left half (across top)
-                case 1: ctx.fillRect(midX, 0, width - midX, band); break; // top-right half
-                case 2: ctx.fillRect(0, height - band, midX, band); break; // bottom-left half
-                case 3: ctx.fillRect(midX, height - band, width - midX, band); break; // bottom-right half
-                case 4: ctx.fillRect(0, 0, band, midY); break; // left-top half
-                case 5: ctx.fillRect(0, midY, band, height - midY); break; // left-bottom half
-                case 6: ctx.fillRect(width - band, 0, band, midY); break; // right-top half
-                case 7: ctx.fillRect(width - band, midY, band, height - midY); break; // right-bottom half
+                case 0: ctx.fillRect(0, 0, midX, band); ctx.beginPath(); ctx.moveTo(6, band/2); ctx.lineTo(midX - 6, band/2); ctx.stroke(); break;
+                case 1: ctx.fillRect(midX, 0, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, band/2); ctx.lineTo(width - 6, band/2); ctx.stroke(); break;
+                case 2: ctx.fillRect(0, height - band, midX, band); ctx.beginPath(); ctx.moveTo(6, height - band/2); ctx.lineTo(midX - 6, height - band/2); ctx.stroke(); break;
+                case 3: ctx.fillRect(midX, height - band, width - midX, band); ctx.beginPath(); ctx.moveTo(midX + 6, height - band/2); ctx.lineTo(width - 6, height - band/2); ctx.stroke(); break;
+                case 4: ctx.fillRect(0, 0, band, midY); ctx.beginPath(); ctx.moveTo(band/2, 6); ctx.lineTo(band/2, midY - 6); ctx.stroke(); break;
+                case 5: ctx.fillRect(0, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(band/2, midY + 6); ctx.lineTo(band/2, height - 6); ctx.stroke(); break;
+                case 6: ctx.fillRect(width - band, 0, band, midY); ctx.beginPath(); ctx.moveTo(width - band/2, 6); ctx.lineTo(width - band/2, midY - 6); ctx.stroke(); break;
+                case 7: ctx.fillRect(width - band, midY, band, height - midY); ctx.beginPath(); ctx.moveTo(width - band/2, midY + 6); ctx.lineTo(width - band/2, height - 6); ctx.stroke(); break;
             }
             ctx.restore();
         }
@@ -477,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
             px = Math.min(Math.max(px, world.xMin), world.xMax);
             py = Math.min(Math.max(py, world.yMin), world.yMax);
 
-            const seg = (tHit <= step && tHit >= 0) ? classifyExitAtWall(px, py) : segmentForExit(px, py);
+            const seg = (tHit <= step && tHit >= 0) ? classifyExitAtWall(px, py) : -1;
             const cx = (px - world.xMin) * (canvas.width / (world.xMax - world.xMin));
             const cy = canvas.height - (py - world.yMin) * (canvas.height / (world.yMax - world.yMin));
             ctx.lineTo(cx, cy);
