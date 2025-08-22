@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Vector Field Plotter</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Include Math.js and Numeric.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Direction Field Game</h1>
+        <p>Enter an equation for y' in terms of x and y<br>to map the red point through the yellow boundary.</p>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label for="equation">y' =</label>
+                <input type="text" id="equation" value="x" placeholder="e.g., x + y">
+            </div>
+            <div class="button-row">
+                <button id="reset" type="button">Reset</button>
+                <button id="go" type="button">Go</button>
+            </div>
+
+            <div id="error-message" class="error"></div>
+            <div id="success-message" class="success"></div>
+            <div id="notice-message" class="notice"></div>
+
+            
+
+        </div>
+        
+        <canvas id="vector-field-canvas" width="600" height="600" title="Drag to pan"></canvas>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
