@@ -50,9 +50,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ensure canvas is square and scaled for device pixel ratio
     function ensureCanvasSize() {
-        // Rely on canvas intrinsic size for drawing coordinates to keep line widths consistent.
-        const pxW = canvas.width || 480;
-        const pxH = canvas.height || 480;
+        // Keep desktop at 480px; shrink on phones for better fit & crispness
+        const parent = canvas.parentElement;
+        const parentW = parent ? parent.clientWidth : 480;
+        const isPhone = window.innerWidth <= 520;
+        const target = Math.max(240, Math.min(parentW, isPhone ? 360 : 480));
+        if (canvas.width !== target || canvas.height !== target) {
+            canvas.width = target;
+            canvas.height = target;
+            canvas.style.width = target + 'px';
+            canvas.style.height = target + 'px';
+        }
+        const pxW = canvas.width;
+        const pxH = canvas.height;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         return { pxWidth: pxW, pxHeight: pxH };
     }
