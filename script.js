@@ -43,22 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Ensure canvas is square and scaled for device pixel ratio
     function ensureCanvasSize() {
-        const dpr = window.devicePixelRatio || 1;
-        // Force square CSS box, cap to 480px
-        const parent = canvas.parentElement;
-        const parentW = parent ? parent.clientWidth : (canvas.clientWidth || canvas.width);
-        const cssW = Math.min(parentW, 480);
-        const cssH = cssW; // enforce square
-        canvas.style.height = cssH + 'px';
-        canvas.style.width = cssW + 'px';
-        const needW = Math.floor(cssW * dpr);
-        const needH = Math.floor(cssH * dpr);
-        if (canvas.width !== needW || canvas.height !== needH) {
-            canvas.width = needW;
-            canvas.height = needH;
-        }
-        // Reset transform and scale drawing to CSS pixels
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Use CSS to keep square and a fixed max width. Here we just read CSS pixels.
+        const cssW = canvas.clientWidth || 480;
+        const cssH = canvas.clientHeight || cssW;
+        // No DPR scaling to avoid overlay misalignment across browsers
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         return { cssWidth: cssW, cssHeight: cssH };
     }
 
@@ -83,11 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- 2a. Reject undefined/invalid characters upfront ---
         const invalidChar = /[^0-9a-zA-Z_\+\-\*\/\^\(\)\.\s]/.test(equationStr);
         if (invalidChar) {
-            // Blank the screen and show error
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Disable overlay state so nothing draws
-            highlightedSegment = -1;
-            startPoint = null;
+            // Do NOT change dot or highlight; just show error and leave current frame as-is
             if (errorDiv) {
                 errorDiv.textContent = 'Try another function: invalid or unsupported expression.';
                 errorDiv.style.display = 'block';
@@ -103,10 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const compiled = node.compile();
             f = (x, y) => compiled.evaluate({ x, y });
         } catch (err) {
-            // Blank the screen and show error
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            highlightedSegment = -1;
-            startPoint = null;
+            // Do NOT change dot or highlight; just show error
             if (errorDiv) {
                 errorDiv.textContent = 'Try another function: invalid or unsupported expression.';
                 errorDiv.style.display = 'block';
@@ -507,11 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (note) { note.style.display = 'block'; note.textContent = 'Try another function.'; }
                 }
-                if (!win) {
-                    // Reset view and overlay back to starting state
-                    plotVectorField();
-                    drawHighlightAndStart();
-                }
+                // On miss, keep the red path and overlays as-is; only show gray banner
                 return;
             }
             animFrame = requestAnimationFrame(frame);
@@ -576,18 +554,8 @@ document.addEventListener('DOMContentLoaded', () => {
     buttons.go?.addEventListener('touchend', (e) => { e.preventDefault(); handleGo(); });
 
     // Redraw on resize/rotation
-    const onResize = () => {
-        // keep current start/highlight; just re-render
-        plotVectorField();
-        drawHighlightAndStart();
-    };
-    if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(() => onResize());
-        ro.observe(canvas);
-        window.addEventListener('orientationchange', onResize);
-    } else {
-        window.addEventListener('resize', onResize);
-    }
+    // Minimal resize handler: re-render once
+    window.addEventListener('resize', () => { plotVectorField(); drawHighlightAndStart(); });
 
     // Initial cursor style for panning
     canvas.style.cursor = 'grab';
