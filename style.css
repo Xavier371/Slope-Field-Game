@@ -8,6 +8,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: flex-start;
+    touch-action: manipulation; /* reduce double-tap zoom / gesture interference */
 }
 
 .container {
@@ -108,11 +109,11 @@ button:hover {
 /* Mobile-friendly layout */
 @media (max-width: 480px) {
     .container {
-        padding: 16px;
+        padding: 12px;
     }
     .input-group input {
         font-size: 16px; /* prevent iOS zoom */
-        padding: 12px;
+        padding: 10px;
     }
     .button-row {
         display: grid;
@@ -121,10 +122,10 @@ button:hover {
     }
     .button-row button {
         min-height: 44px; /* touch target */
-        font-size: 16px;
+        font-size: 15px;
     }
     #vector-field-canvas {
-        max-width: 360px; /* consistent with JS target */
+        max-width: 340px; /* slightly smaller to fit better */
     }
 }
 
