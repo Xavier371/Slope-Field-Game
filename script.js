@@ -127,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const toCanvasX = (x) => (x - xMin) * xPixelScale;
         const toCanvasY = (y) => height - (y - yMin) * yPixelScale;
 
+        const toFiniteNumber = toFinite;
+
         // --- 4. Draw grid and axes ---
         drawAxes(toCanvasX, toCanvasY, width, height);
         
@@ -135,22 +137,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const stepX = xRange / gridDensity;
         const stepY = yRange / gridDensity;
 
+        // Helper to get a usable slope for arrows: remove only if ±Infinity; for NaN try nearby samples
+        const neighborSlope = (x, y) => {
+            try {
+                const raw = f(x, y);
+                if (raw === Infinity || raw === -Infinity) return { s: null, infinite: true };
+                const num = toFinite(raw);
+                if (num != null) return { s: num, infinite: false };
+            } catch (_) {}
+            const span = Math.max(xRange, yRange);
+            const eps = span * 1e-3;
+            const offsets = [[eps,0],[-eps,0],[0,eps],[0,-eps],[eps,eps],[-eps,eps],[eps,-eps],[-eps,-eps]];
+            for (const [dx, dy] of offsets) {
+                const nx = x + dx;
+                const ny = y + dy;
+                try {
+                    const raw = f(nx, ny);
+                    if (raw === Infinity || raw === -Infinity) return { s: null, infinite: true };
+                    const num = toFinite(raw);
+                    if (num != null) return { s: num, infinite: false };
+                } catch (_) {}
+            }
+            return { s: null, infinite: false };
+        };
+
         for (let x = xMin; x <= xMax; x += stepX) {
             for (let y = yMin; y <= yMax; y += stepY) {
                 try {
-                    let slope = f(x, y);
+                    const { s: slope, infinite } = neighborSlope(x, y);
                     const cx = toCanvasX(x);
                     const cy = toCanvasY(y);
                     if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
-                    let angle;
-                    if (!Number.isFinite(slope)) {
-                        // represent undefined/vertical slopes as vertical arrows
-                        angle = Math.PI / 2; // up; signless since direction field is unoriented
-                    } else if (Math.abs(slope) > 1e6) {
-                        angle = Math.sign(slope) >= 0 ? Math.PI / 2 : -Math.PI / 2;
-                    } else {
-                        angle = Math.atan(slope);
-                    }
+                    if (infinite || slope == null) continue;
+                    const angle = Math.abs(slope) > 1e6 ? (Math.sign(slope) >= 0 ? Math.PI/2 : -Math.PI/2) : Math.atan(slope);
                     drawArrow(cx, cy, angle, arrowLength * xPixelScale);
                 } catch (_) {
                     // Skip cells that error
@@ -326,6 +345,26 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentField = null;
     let isAnimating = false;
 
+    // Helper: coerce math.js outputs to a finite JS number; otherwise return null
+    function toFinite(val) {
+        if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+        if (val == null) return null;
+        if (typeof val === 'object') {
+            // Complex numbers are invalid for slope
+            if (typeof val.re === 'number' && typeof val.im === 'number') return null;
+            try {
+                if (math && typeof math.number === 'function') {
+                    const n = math.number(val);
+                    return Number.isFinite(n) ? n : null;
+                }
+            } catch (_) {
+                return null;
+            }
+        }
+        const n = Number(val);
+        return Number.isFinite(n) ? n : null;
+    }
+
     function drawHighlightAndStart() {
         if (!startPoint && highlightedSegment < 0) return;
         const width = canvas.width;
@@ -417,7 +456,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const step = (world.xMax - world.xMin) / 420; // small world step for smooth motion
+        // Speed: faster on phones, slightly faster on desktop
+        const isPhone = window.innerWidth <= 520;
+        const step = (world.xMax - world.xMin) / (isPhone ? 180 : 300);
+
+        // Ensure start is in a finite-slope region; if not, nudge slightly
+        const finiteAt = (x, y) => {
+            try { return toFiniteNumber(f(x, y)) != null; } catch (_) { return false; }
+        };
+        if (!finiteAt(startPoint.x, startPoint.y)) {
+            const span = Math.max(world.xMax - world.xMin, world.yMax - world.yMin);
+            const eps = span * 1e-3;
+            const offsets = [[eps,0],[-eps,0],[0,eps],[0,-eps],[eps,eps],[-eps,eps],[eps,-eps],[-eps,-eps]];
+            for (const [dx, dy] of offsets) {
+                const nx = Math.min(Math.max(startPoint.x + dx, world.xMin), world.xMax);
+                const ny = Math.min(Math.max(startPoint.y + dy, world.yMin), world.yMax);
+                if (finiteAt(nx, ny)) { startPoint = { x: nx, y: ny }; break; }
+            }
+        }
 
         // Hide messages while animating
         const msg = document.getElementById('error-message');
@@ -461,20 +517,27 @@ document.addEventListener('DOMContentLoaded', () => {
         function stepState(st) {
             if (st.done) return;
             // Vector along field: v = (dir, dir*f(x,y)) normalized
-            let slope;
-            try { slope = f(st.x, st.y); } catch (_) { slope = NaN; }
-            let vx, vy;
-            if (Number.isFinite(slope)) {
-                vx = st.dir; vy = st.dir * slope;
-            } else if (slope === Infinity || slope === -Infinity) {
-                vx = 0; vy = st.dir * (Math.sign(slope) || 1);
-            } else {
-                const eps = Math.max((world.yMax - world.yMin) * 1e-6, 1e-6);
-                const s1 = f(st.x, st.y + eps);
-                const s2 = f(st.x, st.y - eps);
-                const s = Number.isFinite(s1) ? s1 : (Number.isFinite(s2) ? s2 : 0);
-                vx = st.dir; vy = st.dir * s;
+            let rawSlope = null;
+            try { rawSlope = f(st.x, st.y); } catch (_) { rawSlope = null; }
+            if (rawSlope === Infinity || rawSlope === -Infinity) { st.done = true; return; }
+            let slope = toFinite(rawSlope);
+            if (slope == null) {
+                // Try nearby samples to recover (cases like 0/0 that resolve nearby)
+                const span = Math.max(world.xMax - world.xMin, world.yMax - world.yMin);
+                const eps = span * 1e-3;
+                const offsets = [[eps,0],[-eps,0],[0,eps],[0,-eps],[eps,eps],[-eps,eps],[eps,-eps],[-eps,-eps]];
+                for (const [dx, dy] of offsets) {
+                    try {
+                        const rs = f(st.x + dx, st.y + dy);
+                        if (rs === Infinity || rs === -Infinity) { slope = null; break; }
+                        const num = toFinite(rs);
+                        if (num != null) { slope = num; break; }
+                    } catch (_) {}
+                }
+                if (slope == null) { st.done = true; return; }
             }
+            let vx = st.dir;
+            let vy = st.dir * slope;
             const len = Math.hypot(vx, vy) || 1;
             const ux = vx / len;
             const uy = vy / len;
@@ -551,6 +614,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Add event listeners for automatic updates ---
     for (const key in inputs) {
         inputs[key].addEventListener('input', () => {
+            // Auto-lowercase the equation input for function names and variables
+            if (key === 'equation') {
+                const cur = inputs.equation.value;
+                const lowered = cur.toLowerCase();
+                if (cur !== lowered) inputs.equation.value = lowered;
+            }
             // Stop animation and reset to original start on function change
             if (isAnimating && animFrame) cancelAnimationFrame(animFrame);
             isAnimating = false;
