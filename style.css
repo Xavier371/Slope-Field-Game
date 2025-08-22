@@ -94,14 +94,15 @@ button:hover {
 #vector-field-canvas {
     box-sizing: content-box;
     width: 100%;
-    max-width: 480px; /* cap grid size on desktops/large screens */
-    height: auto; /* set in JS to maintain perfect square */
+    max-width: 480px;
+    height: auto;
+    aspect-ratio: 1 / 1; /* rely on CSS to keep square; no JS resizing */
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #fff;
     -webkit-tap-highlight-color: transparent;
-    display: block; /* allow centering */
-    margin: 0 auto; /* center canvas */
+    display: block;
+    margin: 0 auto;
 }
 
 /* Mobile-friendly layout */
