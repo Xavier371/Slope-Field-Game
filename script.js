@@ -475,13 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Hide messages while animating
+        // Lock page interactions while animating (mobile resilience)
         const msg = document.getElementById('error-message');
         const ok = document.getElementById('success-message');
         const note = document.getElementById('notice-message');
         if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
         if (ok) { ok.style.display = 'none'; ok.textContent = ''; }
         if (note) { note.style.display = 'none'; note.textContent = ''; }
+        // Prevent touchmove from scrolling during animation
+        const blockTouchMove = (e) => { e.preventDefault(); };
+        document.addEventListener('touchmove', blockTouchMove, { passive: false });
 
         // Two states: forward (+1) and backward (-1)
         const stateF = { x: startPoint.x, y: startPoint.y, dir: 1, done: false, seg: -1 };
@@ -604,6 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (note) { note.style.display = 'block'; note.textContent = 'Try another function.'; }
                 }
+                // Re-enable scrolling
+                document.removeEventListener('touchmove', blockTouchMove, { passive: false });
                 return;
             }
             animFrame = requestAnimationFrame(frame);
