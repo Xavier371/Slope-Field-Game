@@ -565,10 +565,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const ry = world.yMin + margin * (world.yMax - world.yMin) + Math.random() * (1 - 2 * margin) * (world.yMax - world.yMin);
         startPoint = { x: rx, y: ry };
         highlightedSegment = Math.floor(Math.random() * 8);
-        // pick a distinct second segment
+        // Helper to avoid unwinnable pairs: both left halves {4,5} or both right halves {6,7}
+        const isUnwinnablePair = (a, b) => {
+            const s = [a, b].sort().join(',');
+            return s === '4,5' || s === '6,7';
+        };
+        // pick a distinct second segment that doesn't form an unwinnable pair
         do {
             highlightedSegmentB = Math.floor(Math.random() * 8);
-        } while (highlightedSegmentB === highlightedSegment);
+        } while (highlightedSegmentB === highlightedSegment || isUnwinnablePair(highlightedSegment, highlightedSegmentB));
         plotVectorField();
         drawHighlightAndStart();
         const msg = document.getElementById('error-message');
