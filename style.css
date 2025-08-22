@@ -123,6 +123,9 @@ button:hover {
         min-height: 44px; /* touch target */
         font-size: 16px;
     }
+    #vector-field-canvas {
+        max-width: 360px; /* consistent with JS target */
+    }
 }
 
 .error {
