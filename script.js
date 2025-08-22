@@ -9,7 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Control buttons ---
     const buttons = {
-        reset: document.getElementById('reset')
+        reset: document.getElementById('reset'),
+        help: document.getElementById('help'),
+        closeHelp: null
     };
 
     // --- World coordinates state (window) ---
@@ -18,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Preprocess equation to support implicit multiplication like "xy" -> "x*y", "2x" -> "2*x", etc. ---
     function preprocessEquation(equation) {
-        let s = equation.trim();
+        let s = (equation || '').toLowerCase().trim();
         const fn = '(?:sin|cos|tan|sec|csc|cot|asin|acos|atan|sinh|cosh|tanh|asinh|acosh|atanh|exp|log|ln|sqrt)';
         // Insert * between:
         // number and variable: 2x -> 2*x
@@ -30,18 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // number/variable/closing paren before opening paren: 2(, x(, y(, )( -> multiply
         s = s.replace(/([0-9xy\)])\s*\(/gi, '$1*(');
         // closing parenthesis and number/variable/function: )x, )2, )sin -> )*x, )*2, )*sin
-        s = s.replace(/\)\s*(?=(?:[0-9xy]|${fn})\b)/gi, ')*');
+        s = s.replace(new RegExp(`\\)\\s*(?=(?:[0-9xy]|${fn})\\b)`, 'gi'), ')*');
         // number/variable/closing paren immediately before a function name: 2sin, xcos, )exp -> insert *
         s = s.replace(new RegExp(`([0-9xy\)])\s*(?=${fn}\\b)`, 'gi'), '$1*');
         // Function name followed by bare variable: sin x -> sin(x)
         s = s.replace(new RegExp(`\\b(${fn})\\s*([xy])`, 'gi'), '$1($2)');
-        // Map ln(x) -> log(x) (natural log)
+        // Map ln(x) -> log(x) (natural log). Keep log(x) as natural log; allow log(x, base) unchanged.
         s = s.replace(/\bln\s*\(/gi, 'log(');
-        // Support log-base notation: loga(b) -> log(b, a)
-        // Simple (non-nested) argument matcher first
-        s = s.replace(/\blog\s*([A-Za-z]|\d+(?:\.\d+)?)\s*\(([^()]+)\)/gi, (m, base, arg) => `log(${arg}, ${base})`);
-        // Single-argument log assumes base 10: log(b) -> log(b, 10)
-        s = s.replace(/\blog\s*\(([^()]+)\)/gi, (m, arg) => `log(${arg}, 10)`);
         // closing and opening parenthesis: )( -> )*(
         s = s.replace(/\)\s*\(/g, ')*(');
         return s;
@@ -93,7 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ]);
 
         function classifyExitAtWall(x, y) {
-            const tol = 1e-9;
+            const span = Math.max(world.xMax - world.xMin, world.yMax - world.yMin);
+            const tol = span * 1e-6;
             const midX = (world.xMin + world.xMax) / 2;
             const midY = (world.yMin + world.yMax) / 2;
             if (Math.abs(y - world.yMax) <= tol) return x <= midX ? 0 : 1;
@@ -235,8 +233,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (okDiv) { okDiv.style.display = 'none'; okDiv.textContent = ''; }
         if (noteDiv) { noteDiv.style.display = 'none'; noteDiv.textContent = ''; }
 
-        // --- 2a. Reject undefined/invalid characters upfront ---
-        const invalidChar = /[^0-9a-zA-Z_\+\-\*\/\^\(\)\.\s]/.test(equationStr);
+        // --- 2a. Reject undefined/invalid characters upfront (allow comma for log(x, base)) ---
+        const invalidChar = /[^0-9a-zA-Z_,\+\-\*\/\^\(\)\.\s]/.test(equationStr);
         if (invalidChar) {
             // Do NOT change dot or highlight; just show error and leave current frame as-is
             if (errorDiv) {
@@ -287,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const stepX = xRange / gridDensity;
         const stepY = yRange / gridDensity;
 
-        // Helper to get a usable slope for arrows: remove only if ±Infinity; for NaN try nearby samples
+        // Helper to get a usable slope for arrows: use same predicate as tracing
         const neighborSlope = (x, y) => {
             try {
                 const raw = f(x, y);
@@ -808,6 +806,20 @@ document.addEventListener('DOMContentLoaded', () => {
         plotVectorField();
         randomizeGame();
     });
+
+    // Help modal wiring
+    const helpOverlay = document.getElementById('help-overlay');
+    const closeHelpBtn = document.getElementById('close-help');
+    buttons.closeHelp = closeHelpBtn;
+    const openHelp = () => {
+        if (helpOverlay) helpOverlay.setAttribute('aria-hidden', 'false');
+    };
+    const closeHelp = () => {
+        if (helpOverlay) helpOverlay.setAttribute('aria-hidden', 'true');
+    };
+    buttons.help?.addEventListener('click', openHelp);
+    closeHelpBtn?.addEventListener('click', closeHelp);
+    helpOverlay?.addEventListener('click', (e) => { if (e.target === helpOverlay) closeHelp(); });
 
     // Redraw on resize/rotation
     // Minimal resize handler: re-render once
