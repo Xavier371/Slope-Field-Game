@@ -92,11 +92,16 @@ button:hover {
 }
 
 #vector-field-canvas {
+    box-sizing: content-box;
     width: 100%;
+    max-width: 480px; /* cap grid size on desktops/large screens */
     height: auto; /* set in JS to maintain perfect square */
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #fff;
+    -webkit-tap-highlight-color: transparent;
+    display: block; /* allow centering */
+    margin: 0 auto; /* center canvas */
 }
 
 /* Mobile-friendly layout */
