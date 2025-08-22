@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canvas Vector Field Plotter</title>
+    <title>Slope Field Game</title>
     <link rel="stylesheet" href="style.css">
     <!-- Include Math.js and Numeric.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.js"></script>
@@ -11,8 +11,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>Direction Field Game</h1>
-        <p>Enter an equation for y' in terms of x and y<br>to map the red point through the yellow boundary.</p>
+        <h1>Slope Field Game</h1>
+        <p>Enter an equation for y' in terms of x and y<br>to map the red point through the yellow boundaries.</p>
         
         <div class="controls">
             <div class="input-group">
@@ -21,6 +21,7 @@
             </div>
             <div class="button-row">
                 <button id="reset" type="button">Reset</button>
+                <button id="help" type="button">Help</button>
             </div>
 
             <div id="error-message" class="error"></div>
@@ -32,6 +33,24 @@
         </div>
         
         <canvas id="vector-field-canvas" width="480" height="480" title="Drag to pan"></canvas>
+
+        <div id="help-overlay" class="modal-overlay" aria-hidden="true">
+            <div class="modal" role="dialog" aria-labelledby="help-title" aria-modal="true">
+                <h2 id="help-title">How it works</h2>
+                <p>
+                    Type y' = f(x, y). Each arrow shows the slope f(x, y) at its grid point.
+                    The red curve is the solution through the red dot, traced in both directions
+                    until it hits the box.
+                </p>
+                <p>
+                    Your goal: pick a function so the curve exits through both highlighted yellow
+                    boundaries (any order). Tap Reset for a new start and targets.
+                </p>
+                <div class="button-row">
+                    <button id="close-help" type="button">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
