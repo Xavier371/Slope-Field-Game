@@ -574,6 +574,26 @@ document.addEventListener('DOMContentLoaded', () => {
         do {
             highlightedSegmentB = Math.floor(Math.random() * 8);
         } while (highlightedSegmentB === highlightedSegment || isUnwinnablePair(highlightedSegment, highlightedSegmentB));
+        // Enforce vertical-line-test feasibility only (x monotone along solutions)
+        const a = highlightedSegment, b = highlightedSegmentB;
+        const midX = (world.xMin + world.xMax) / 2;
+        const includesRightWall = (a === 6 || a === 7 || b === 6 || b === 7);
+        const includesLeftWall = (a === 4 || a === 5 || b === 4 || b === 5);
+        const includesRightHalfHorizontal = (a === 1 || a === 3 || b === 1 || b === 3);
+        const includesLeftHalfHorizontal = (a === 0 || a === 2 || b === 0 || b === 2);
+        const bothRightHalfHorizontals = ((a === 1 || a === 3) && (b === 1 || b === 3));
+        const bothLeftHalfHorizontals = ((a === 0 || a === 2) && (b === 0 || b === 2));
+        const rerollStartInHalf = (side) => {
+            const xA = side === 'left' ? world.xMin : midX;
+            const xB = side === 'left' ? midX : world.xMax;
+            const rx2 = xA + margin * (xB - xA) + Math.random() * (1 - 2 * margin) * (xB - xA);
+            const ry2 = world.yMin + margin * (world.yMax - world.yMin) + Math.random() * (1 - 2 * margin) * (world.yMax - world.yMin);
+            startPoint = { x: rx2, y: ry2 };
+        };
+        if (includesRightWall && includesRightHalfHorizontal && startPoint.x < midX) rerollStartInHalf('right');
+        if (includesLeftWall && includesLeftHalfHorizontal && startPoint.x > midX) rerollStartInHalf('left');
+        if (bothRightHalfHorizontals && startPoint.x < midX) rerollStartInHalf('right');
+        if (bothLeftHalfHorizontals && startPoint.x > midX) rerollStartInHalf('left');
         plotVectorField();
         drawHighlightAndStart();
         const msg = document.getElementById('error-message');
