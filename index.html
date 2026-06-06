@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <title>Slope Field Game</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+            onload="renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                ignoredClasses: ['eq-overlay'],
+                throwOnError: false
+            });"></script>
+    <!-- Math.js and Numeric.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+</head>
+<body>
+    <div class="container">
+
+        <div class="ui-panel">
+            <header class="app-header">
+                <h1>Slope Field Game</h1>
+                <p class="subtitle">
+                    \(y' = f(x,\, y)\) is the slope of the arrow at each point \((x,\, y)\)
+                </p>
+                <p class="subtitle subtitle-guide">
+                    Guide the solution curve through both highlighted segments
+                </p>
+            </header>
+
+            <!-- Timer -->
+            <div class="game-stats">
+                <span class="stat-label">TIME</span>
+                <span class="stat-value" id="timer-display">0:00</span>
+            </div>
+
+            <div class="controls">
+                <div class="input-group">
+                    <span class="input-label">\(y' =\)</span>
+                    <div class="input-math-wrapper">
+                        <input type="text" id="equation" value="0" placeholder="e.g., x+y, sin(x), x^2-y"
+                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                        <div id="eq-overlay" class="eq-overlay"></div>
+                    </div>
+                </div>
+                <div class="button-row">
+                    <button id="reset" class="btn btn-reset" type="button">&#8635; Reset</button>
+                    <button id="solve" class="btn btn-solve" type="button">Solve</button>
+                    <button id="help"  class="btn btn-help"  type="button">?</button>
+                </div>
+
+                <div id="error-message"   class="message message-error"></div>
+                <div id="success-message" class="message message-success"></div>
+                <div id="notice-message"  class="message message-notice"></div>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="vector-field-canvas" width="480" height="480"></canvas>
+        </div>
+
+        <!-- Help modal -->
+        <div id="help-overlay" class="modal-overlay" aria-hidden="true">
+            <div class="modal" role="dialog" aria-labelledby="help-title" aria-modal="true">
+                <h2 id="help-title">How to Play</h2>
+
+                <div class="help-block">
+                    <p class="help-heading">What is a slope field?</p>
+                    <p>
+                        A slope field visualizes \(y' = f(x,\, y)\), where \(f(x,\, y)\)
+                        is the slope of each arrow at the corresponding point \((x,\, y)\).
+                    </p>
+                </div>
+
+                <div class="help-block">
+                    <p class="help-heading">Your goal</p>
+                    <p>
+                        Select \(f(x,\, y)\) so that, starting from the red point,
+                        the solution curve intersects both highlighted boundary segments.
+                    </p>
+                </div>
+
+                <div class="help-block">
+                    <p class="help-heading">Supported syntax</p>
+                    <p>
+                        Variables \(x\) and \(y\) &nbsp;&middot;&nbsp;
+                        operators \(+,\,-,\,*,\,/,\,\hat{\phantom{i}}\) &nbsp;&middot;&nbsp;
+                        functions \(\sin,\,\cos,\,\tan,\,\exp,\,\ln,\,\sqrt{\cdot}\), etc.
+                    </p>
+                    <p class="help-examples">
+                        Try: \(x \;\cdot\; {-y} \;\cdot\; x+y \;\cdot\; x^2-y \;\cdot\; \sin(x)\cos(y)\)
+                    </p>
+                </div>
+
+                <div class="help-block">
+                    <p class="help-heading">Solve button</p>
+                    <p>
+                        Press Solve and the game finds a working \(f(x,\, y)\) for you.
+                    </p>
+                </div>
+
+                <div class="button-row" style="margin-top:18px;">
+                    <button id="close-help" class="btn btn-reset" type="button">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
