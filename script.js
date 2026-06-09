@@ -761,6 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showOverlay();
                 awaitingUserAction = true;
                 plotVectorField();
+                updateCursor();
             } else {
                 if (note) { note.style.display = 'block'; note.textContent = 'No simple solution found — try Reset for a new puzzle.'; }
             }
