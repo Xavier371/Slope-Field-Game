@@ -224,12 +224,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function ensureCanvasSize() {
         const dpr = window.devicePixelRatio || 1;
         const parent = canvas.parentElement;
-        const isLandscapeMobile = window.innerWidth > window.innerHeight && window.innerHeight <= 540;
+        const isLandscapeMobile = window.innerWidth > window.innerHeight && window.innerHeight <= 620;
         let cssTarget;
         if (isLandscapeMobile) {
-            // Fill viewport height minus body padding
-            const avail = window.innerHeight - 20;
-            cssTarget = Math.max(160, Math.min(avail, window.innerWidth * 0.55));
+            // Canvas height = viewport height minus top/bottom padding
+            cssTarget = Math.max(150, window.innerHeight - 24);
         } else {
             const parentW = (parent && parent.clientWidth > 0) ? parent.clientWidth
                           : Math.min(window.innerWidth - 48, 480);
