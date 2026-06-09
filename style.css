@@ -410,68 +410,57 @@ h1 {
 @media (orientation: landscape) and (max-height: 540px) {
     body {
         padding: 6px 8px;
-        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
         align-items: center;
-        min-height: 100dvh;
     }
 
     .container {
         flex-direction: row;
-        align-items: stretch;
+        align-items: center;
         max-width: 100%;
         width: 100%;
-        padding: 10px 12px;
-        border-radius: 12px;
-        gap: 12px;
+        padding: 8px 10px;
+        gap: 10px;
     }
 
     .ui-panel {
         flex: 1;
         min-width: 0;
-        gap: 8px;
-        justify-content: center;
+        gap: 6px;
     }
 
     .canvas-wrapper {
         flex: 0 0 auto;
         width: auto;
-        margin: 0;
-        display: flex;
-        align-items: center;
-    }
-
-    #vector-field-canvas {
-        /* JS sets exact px size; CSS ensures it doesn't stretch */
         max-width: none;
-        width: auto !important;
-        height: auto !important;
-        aspect-ratio: 1 / 1;
+        margin: 0;
     }
 
-    .app-header { text-align: left; }
-
-    h1 { font-size: 1.15rem; margin-bottom: 2px; }
-    .subtitle { font-size: 0.78rem; }
-    .subtitle-goal { font-size: 0.72rem; margin-top: 1px; }
-
-    .game-stats {
-        padding: 5px 14px;
-        justify-content: flex-start;
+    /* Let JS control canvas dimensions — do not override */
+    #vector-field-canvas {
+        width: auto;
+        height: auto;
+        max-width: none;
+        aspect-ratio: unset;
+        border-radius: 8px;
     }
-    .stat-value { font-size: 1.2rem; }
 
-    .controls { gap: 7px; }
+    h1 { font-size: 1.1rem; }
+    .subtitle { font-size: 0.76rem; }
 
-    .input-group { padding: 4px 10px; }
-    #equation { font-size: 14px; padding: 5px 2px; }
+    .game-stats { padding: 4px 12px; }
+    .stat-value { font-size: 1.1rem; }
+
+    .controls { gap: 6px; }
+    .input-group { padding: 3px 10px; }
+    #equation { font-size: 14px; }
 
     .button-row { gap: 6px; }
-    .btn { min-height: 38px; font-size: 0.85em; }
-    .btn-help { width: 38px; }
+    .btn { min-height: 36px; font-size: 0.82em; }
+    .btn-help { width: 36px; }
 
-    .message { font-size: 0.8em; padding: 6px 10px; }
+    .message { font-size: 0.78em; padding: 5px 8px; }
 
-    .modal { max-height: 85dvh; padding: 18px 20px; }
-    .modal h2 { font-size: 1.1rem; margin-bottom: 10px; }
-    .help-block { margin-bottom: 10px; padding-bottom: 10px; }
+    .modal { max-height: 88dvh; padding: 16px 18px; }
+    .modal h2 { font-size: 1.05rem; margin-bottom: 8px; }
+    .help-block { margin-bottom: 8px; padding-bottom: 8px; }
 }
