@@ -407,9 +407,13 @@ h1 {
 }
 
 /* ── Landscape mobile ────────────────────────────────────── */
-@media (orientation: landscape) and (max-height: 540px) {
+@media (orientation: landscape) and (max-height: 620px) {
     body {
-        padding: 6px 8px;
+        /* respect notch / home-bar safe areas on both sides */
+        padding-top: 4px;
+        padding-bottom: 4px;
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
         align-items: center;
     }
 
@@ -435,30 +439,30 @@ h1 {
         margin: 0;
     }
 
-    /* Let JS control canvas dimensions — do not override */
+    /* JS sets explicit px width/height via inline style — don't fight it */
     #vector-field-canvas {
-        width: auto;
-        height: auto;
+        display: block;
         max-width: none;
         aspect-ratio: unset;
         border-radius: 8px;
     }
 
-    h1 { font-size: 1.1rem; }
-    .subtitle { font-size: 0.76rem; }
+    h1 { font-size: 1.05rem; margin-bottom: 2px; }
+    .subtitle { font-size: 0.74rem; }
+    .subtitle-guide { font-size: 0.68rem; }
 
     .game-stats { padding: 4px 12px; }
     .stat-value { font-size: 1.1rem; }
 
-    .controls { gap: 6px; }
+    .controls { gap: 5px; }
     .input-group { padding: 3px 10px; }
-    #equation { font-size: 14px; }
+    #equation { font-size: 14px; padding: 4px 2px; }
 
-    .button-row { gap: 6px; }
+    .button-row { gap: 5px; }
     .btn { min-height: 36px; font-size: 0.82em; }
     .btn-help { width: 36px; }
 
-    .message { font-size: 0.78em; padding: 5px 8px; }
+    .message { font-size: 0.76em; padding: 4px 8px; }
 
     .modal { max-height: 88dvh; padding: 16px 18px; }
     .modal h2 { font-size: 1.05rem; margin-bottom: 8px; }
