@@ -11,20 +11,10 @@ function getSupabase() {
     return _supabaseClient;
 }
 
-function getUsername() {
-    let name = localStorage.getItem('sfg_username');
-    if (!name) {
-        name = prompt('Enter your username to track your times:') || 'anonymous';
-        localStorage.setItem('sfg_username', name.trim() || 'anonymous');
-    }
-    return localStorage.getItem('sfg_username');
-}
-
 async function submitTime(levelId, elapsedMs) {
     const db = getSupabase();
     if (!db) return;
-    const username = getUsername();
-    await db.from('slope_completions').insert({ username, level_id: levelId, elapsed_ms: elapsedMs });
+    await db.from('slope_completions').insert({ username: 'player', level_id: levelId, elapsed_ms: elapsedMs });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1300,6 +1290,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     plotVectorField(); // Initial plot (randomize will be forced if needed)
-    if (startPoint) renderStaticTrace();
     showOverlay();
 });
