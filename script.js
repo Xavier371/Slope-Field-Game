@@ -991,9 +991,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Always reset equation to a random pick from {-1, 0, 1}
-        const startEqs = ['-1', '0', '1'];
-        inputs.equation.value = startEqs[Math.floor(Math.random() * startEqs.length)];
+        // Pick a starting equation from {-1, 0, 1} that doesn't already solve the puzzle
+        const targets = [highlightedSegment, highlightedSegmentB].sort();
+        const startEqs = ['-1', '0', '1'].sort(() => Math.random() - 0.5);
+        inputs.equation.value = startEqs[0]; // fallback
+        for (const eq of startEqs) {
+            try {
+                const compiled = math.parse(preprocessEquation(eq)).compile();
+                const f = (x, y) => compiled.evaluate({ x, y });
+                const exits = [simulateExit(f, startPoint.x, startPoint.y, 1),
+                               simulateExit(f, startPoint.x, startPoint.y, -1)].sort();
+                if (exits[0] !== targets[0] || exits[1] !== targets[1]) {
+                    inputs.equation.value = eq;
+                    break;
+                }
+            } catch (_) {}
+        }
 
         // Draw field without trace first (win check blocked by isResetting)
         isResetting = true;
