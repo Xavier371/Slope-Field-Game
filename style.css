@@ -407,71 +407,69 @@ h1 {
 }
 
 /* ── Landscape mobile ────────────────────────────────────── */
-@media (orientation: landscape) and (max-height: 540px) {
+@media (orientation: landscape) and (max-height: 620px) {
     body {
-        padding: 6px 8px;
-        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        padding-top: 4px;
+        padding-bottom: 4px;
+        padding-left: max(8px, env(safe-area-inset-left));
+        padding-right: max(8px, env(safe-area-inset-right));
         align-items: center;
-        min-height: 100dvh;
+        min-height: unset;
     }
 
     .container {
         flex-direction: row;
-        align-items: stretch;
+        align-items: center;
         max-width: 100%;
         width: 100%;
-        padding: 10px 12px;
-        border-radius: 12px;
-        gap: 12px;
+        padding: 8px;
+        gap: 10px;
+        border-radius: 0;
+        box-shadow: none;
     }
 
     .ui-panel {
         flex: 1;
         min-width: 0;
-        gap: 8px;
-        justify-content: center;
+        gap: 5px;
     }
 
     .canvas-wrapper {
         flex: 0 0 auto;
         width: auto;
-        margin: 0;
-        display: flex;
-        align-items: center;
-    }
-
-    #vector-field-canvas {
-        /* JS sets exact px size; CSS ensures it doesn't stretch */
         max-width: none;
-        width: auto !important;
-        height: auto !important;
-        aspect-ratio: 1 / 1;
+        margin: 0;
     }
 
-    .app-header { text-align: left; }
-
-    h1 { font-size: 1.15rem; margin-bottom: 2px; }
-    .subtitle { font-size: 0.78rem; }
-    .subtitle-goal { font-size: 0.72rem; margin-top: 1px; }
-
-    .game-stats {
-        padding: 5px 14px;
-        justify-content: flex-start;
+    /* Do NOT set width/height here — JS inline styles handle it */
+    #vector-field-canvas {
+        width: auto;
+        height: auto;
+        max-width: none;
+        aspect-ratio: unset;
+        border-radius: 8px;
     }
-    .stat-value { font-size: 1.2rem; }
 
-    .controls { gap: 7px; }
+    .subtitle-guide { display: none; }
 
-    .input-group { padding: 4px 10px; }
-    #equation { font-size: 14px; padding: 5px 2px; }
+    h1 { font-size: 1rem; margin-bottom: 0; }
+    .subtitle { font-size: 0.72rem; }
+    .app-header { margin-bottom: 0; }
 
-    .button-row { gap: 6px; }
-    .btn { min-height: 38px; font-size: 0.85em; }
-    .btn-help { width: 38px; }
+    .game-stats { padding: 3px 10px; margin-bottom: 0; }
+    .stat-value { font-size: 1rem; }
 
-    .message { font-size: 0.8em; padding: 6px 10px; }
+    .controls { gap: 5px; margin-bottom: 0; }
+    .input-group { padding: 3px 8px; }
+    #equation { font-size: 14px; padding: 3px 2px; }
 
-    .modal { max-height: 85dvh; padding: 18px 20px; }
-    .modal h2 { font-size: 1.1rem; margin-bottom: 10px; }
-    .help-block { margin-bottom: 10px; padding-bottom: 10px; }
+    .button-row { gap: 5px; }
+    .btn { min-height: 34px; font-size: 0.8em; padding: 6px 10px; }
+    .btn-help { width: 34px; padding: 0; }
+
+    .message { font-size: 0.74em; padding: 4px 8px; }
+
+    .modal { max-height: 92dvh; padding: 14px 16px; }
+    .modal h2 { font-size: 1rem; margin-bottom: 8px; }
+    .help-block { margin-bottom: 8px; padding-bottom: 8px; }
 }

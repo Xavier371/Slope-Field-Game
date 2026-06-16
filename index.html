@@ -35,10 +35,12 @@
                 </p>
             </header>
 
-            <!-- Timer -->
+            <!-- Timer + Level Average -->
             <div class="game-stats">
                 <span class="stat-label">TIME</span>
                 <span class="stat-value" id="timer-display">0:00</span>
+                <span class="stat-label">AVG</span>
+                <span class="stat-value" id="avg-display">—</span>
             </div>
 
             <div class="controls">
@@ -113,6 +115,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

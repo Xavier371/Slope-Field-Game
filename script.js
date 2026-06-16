@@ -1,3 +1,32 @@
+// --- Supabase setup ---
+const SUPABASE_URL = 'https://searruwutinbfqhqxdjo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlYXJydXd1dGluYmZxaHF4ZGpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NTYzOTIsImV4cCI6MjA5NzEzMjM5Mn0.61vmX4DtKSKVRtCfGJUNmHcbgZIFJUSX3sgxEhjSgeY';
+
+let _supabaseClient = null;
+function getSupabase() {
+    if (!_supabaseClient) {
+        try { _supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }
+        catch (_) {}
+    }
+    return _supabaseClient;
+}
+
+function getUsername() {
+    let name = localStorage.getItem('sfg_username');
+    if (!name) {
+        name = prompt('Enter your username to track your times:') || 'anonymous';
+        localStorage.setItem('sfg_username', name.trim() || 'anonymous');
+    }
+    return localStorage.getItem('sfg_username');
+}
+
+async function submitTime(levelId, elapsedMs) {
+    const db = getSupabase();
+    if (!db) return;
+    const username = getUsername();
+    await db.from('slope_completions').insert({ username, level_id: levelId, elapsed_ms: elapsedMs });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('vector-field-canvas');
     const ctx = canvas.getContext('2d');
@@ -224,12 +253,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function ensureCanvasSize() {
         const dpr = window.devicePixelRatio || 1;
         const parent = canvas.parentElement;
-        const isLandscapeMobile = window.innerWidth > window.innerHeight && window.innerHeight <= 540;
+        const isLandscapeMobile = window.innerWidth > window.innerHeight && window.innerHeight <= 620;
         let cssTarget;
         if (isLandscapeMobile) {
-            // Fill viewport height minus body padding
-            const avail = window.innerHeight - 20;
-            cssTarget = Math.max(160, Math.min(avail, window.innerWidth * 0.55));
+            // Canvas height = viewport height minus top/bottom padding
+            cssTarget = Math.max(150, window.innerHeight - 24);
         } else {
             const parentW = (parent && parent.clientWidth > 0) ? parent.clientWidth
                           : Math.min(window.innerWidth - 48, 480);
@@ -360,16 +388,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Draw highlight and start point overlay on top of field
         drawHighlightAndStart();
-        // If not initialized yet, force-init once
+        // If not initialized yet, force-init once and return early
+        // (randomizeGame handles all drawing internally)
         if (!startPoint || highlightedSegment < 0) {
             randomizeGame();
-            // Re-draw overlay (field already drawn)
-            drawHighlightAndStart();
+            return;
         }
         // store field function for rendering
         currentField = f;
-        // Always render the static trace after field is drawn
-        if (startPoint) {
+        // Render trace unless we are mid-reset (prevents game starting won)
+        if (startPoint && !isResetting) {
             renderStaticTrace();
         }
     };
@@ -596,7 +624,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let highlightedSegment = -1; // primary target 0..7
     let highlightedSegmentB = -1; // secondary target 0..7, distinct
     let startPoint = null; // {x, y} in world units
+    let currentLevelId = null; // e.g. "2_-3_0_5"
     let currentField = null;
+    let isResetting = false;
     let awaitingUserAction = false; // block re-triggering win while auto-advancing
 
     // --- Timer state ---
@@ -627,6 +657,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     }
 
+    // --- Fetch and display the global average time for a level ---
+    async function fetchAndShowAvg(levelId) {
+        const el = document.getElementById('avg-display');
+        if (!el) return;
+        el.textContent = '…';
+        const db = getSupabase();
+        if (!db || !levelId) { el.textContent = '—'; return; }
+        const { data } = await db.from('slope_completions').select('elapsed_ms').eq('level_id', levelId);
+        if (data && data.length > 0) {
+            const avg = Math.round(data.reduce((sum, r) => sum + r.elapsed_ms, 0) / data.length);
+            el.textContent = formatTime(avg);
+        } else {
+            el.textContent = formatTime(0);
+        }
+    }
+
     // --- Update canvas cursor based on game state ---
     function updateCursor() {
         canvas.style.cursor = awaitingUserAction ? 'grab' : 'default';
@@ -640,6 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ok = document.getElementById('success-message');
         if (ok) { ok.style.display = 'block'; ok.textContent = `Solved! Time: ${formatTime(elapsed)} — drag the point to explore, or press \u21BA Reset.`; }
         updateCursor();
+        if (currentLevelId) submitTime(currentLevelId, elapsed).then(() => fetchAndShowAvg(currentLevelId));
     }
 
     // --- Advance targets only (keep start point, world, and equation) ---
@@ -761,6 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showOverlay();
                 awaitingUserAction = true;
                 plotVectorField();
+                updateCursor();
             } else {
                 if (note) { note.style.display = 'block'; note.textContent = 'No simple solution found — try Reset for a new puzzle.'; }
             }
@@ -891,20 +939,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function randomizeGame() {
-        startTimer();
-        awaitingUserAction = false;
+    // Integer grid points for start positions: [-4, 4] x [-4, 4]
+    const GRID_COORDS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
 
-        const margin = 0.1;
+    function randomizeGame() {
+        // Keep awaitingUserAction = true during setup so renderStaticTrace
+        // (called inside plotVectorField) cannot fire a win mid-reset.
+        awaitingUserAction = true;
+        currentLevelId = null;
+
+        // Clear all messages manually since awaitingUserAction blocks plotVectorField from doing it
+        ['success-message', 'error-message', 'notice-message'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = 'none'; el.textContent = ''; }
+        });
+
         const isUnwinnablePair = (a, b) => { const s = [a, b].sort().join(','); return s === '4,5' || s === '6,7'; };
-        const randInRange = (lo, hi) => lo + margin * (hi - lo) + Math.random() * (1 - 2 * margin) * (hi - lo);
 
         // Keep re-rolling until the puzzle has at least one candidate solution
         let attempts = 0;
         while (attempts < 200) {
             attempts++;
-            const rx = randInRange(world.xMin, world.xMax);
-            const ry = randInRange(world.yMin, world.yMax);
+            const rx = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
+            const ry = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
             const segA = Math.floor(Math.random() * 8);
             let segB;
             do { segB = Math.floor(Math.random() * 8); }
@@ -914,47 +971,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 startPoint = { x: rx, y: ry };
                 highlightedSegment  = segA;
                 highlightedSegmentB = segB;
+                const [lo, hi] = [Math.min(segA, segB), Math.max(segA, segB)];
+                currentLevelId = `${rx}_${ry}_${lo}_${hi}`;
                 break;
             }
         }
 
-        // Ensure the current equation doesn't already solve this puzzle
-        if (startPoint && highlightedSegment >= 0) {
-            try {
-                const curEq = (inputs.equation.value || '').trim() || '0';
-                const compiled = math.parse(preprocessEquation(curEq)).compile();
-                const f = (x, y) => compiled.evaluate({ x, y });
-                const exits = [simulateExit(f, startPoint.x, startPoint.y, 1),
-                               simulateExit(f, startPoint.x, startPoint.y, -1)].sort();
-                const targets = [highlightedSegment, highlightedSegmentB].sort();
-                const alreadyWins = exits[0] === targets[0] && exits[1] === targets[1];
-                if (alreadyWins) {
-                    // Pick a non-winning alternative from the simple set
-                    const alts = ['1', '0', '-1'].sort(() => Math.random() - 0.5);
-                    for (const alt of alts) {
-                        try {
-                            const c2 = math.parse(preprocessEquation(alt)).compile();
-                            const f2 = (x, y) => c2.evaluate({ x, y });
-                            const e2 = [simulateExit(f2, startPoint.x, startPoint.y, 1),
-                                        simulateExit(f2, startPoint.x, startPoint.y, -1)].sort();
-                            if (e2[0] !== targets[0] || e2[1] !== targets[1]) {
-                                inputs.equation.value = alt;
-                                break;
-                            }
-                        } catch (_) {
-                            inputs.equation.value = alt;
-                            break;
-                        }
-                    }
-                }
-            } catch (_) {}
-        }
+        // Always reset equation to a random pick from {-1, 0, 1}
+        const startEqs = ['-1', '0', '1'];
+        inputs.equation.value = startEqs[Math.floor(Math.random() * startEqs.length)];
 
+        // Draw field without trace first (win check blocked by isResetting)
+        isResetting = true;
         plotVectorField();
         drawHighlightAndStart();
-        const msg = document.getElementById('error-message');
-        if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+        isResetting = false;
+
+        // Draw trace now — awaitingUserAction is still true so win check cannot fire
         renderStaticTrace();
+
+        fetchAndShowAvg(currentLevelId);
+        awaitingUserAction = false;
+        updateCursor();
+        startTimer();
     }
 
     function segmentForExit(x, y) {
@@ -1163,13 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset button
     buttons.reset?.addEventListener('click', () => {
         world = { ...defaultWorld };
-        startPoint = null;
-        highlightedSegment = -1;
         isDraggingPoint = false;
-        // Reset equation randomly to 1, 0, or -1
-        const resetEqs = ['1', '0', '-1'];
-        inputs.equation.value = resetEqs[Math.floor(Math.random() * resetEqs.length)];
-        plotVectorField();
         randomizeGame();
         updateCursor();
         showOverlay();
