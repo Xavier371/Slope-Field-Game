@@ -627,6 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentLevelId = null; // e.g. "2_-3_0_5"
     let currentField = null;
     let isResetting = false;
+    let introLevelIndex = 0; // first 3 games are always the same fixed levels
     let awaitingUserAction = false; // block re-triggering win while auto-advancing
 
     // --- Timer state ---
@@ -942,6 +943,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Integer grid points for start positions: [-4, 4] x [-4, 4]
     const GRID_COORDS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
 
+    // Fixed intro levels — identical for every player on every page load
+    // (0,0) with simple solutions: y'=-1, y'=1, y'=0
+    const INTRO_LEVELS = [
+        { x: 0, y: 0, segA: 0, segB: 3 },
+        { x: 0, y: 0, segA: 1, segB: 2 },
+        { x: 0, y: 0, segA: 4, segB: 6 },
+    ];
+
     function randomizeGame() {
         // Keep awaitingUserAction = true during setup so renderStaticTrace
         // (called inside plotVectorField) cannot fire a win mid-reset.
@@ -954,26 +963,41 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el) { el.style.display = 'none'; el.textContent = ''; }
         });
 
-        const isUnwinnablePair = (a, b) => { const s = [a, b].sort().join(','); return s === '4,5' || s === '6,7'; };
+        // Use fixed intro levels for the first 3 games, then go random
+        let usedIntro = false;
+        if (introLevelIndex < INTRO_LEVELS.length) {
+            const intro = INTRO_LEVELS[introLevelIndex];
+            if (findSolution(intro.x, intro.y, intro.segA, intro.segB) !== null) {
+                startPoint = { x: intro.x, y: intro.y };
+                highlightedSegment  = intro.segA;
+                highlightedSegmentB = intro.segB;
+                const [lo, hi] = [Math.min(intro.segA, intro.segB), Math.max(intro.segA, intro.segB)];
+                currentLevelId = `${intro.x}_${intro.y}_${lo}_${hi}`;
+                introLevelIndex++;
+                usedIntro = true;
+            }
+        }
 
-        // Keep re-rolling until the puzzle has at least one candidate solution
-        let attempts = 0;
-        while (attempts < 200) {
-            attempts++;
-            const rx = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
-            const ry = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
-            const segA = Math.floor(Math.random() * 8);
-            let segB;
-            do { segB = Math.floor(Math.random() * 8); }
-            while (segB === segA || isUnwinnablePair(segA, segB));
+        if (!usedIntro) {
+            const isUnwinnablePair = (a, b) => { const s = [a, b].sort().join(','); return s === '4,5' || s === '6,7'; };
+            let attempts = 0;
+            while (attempts < 200) {
+                attempts++;
+                const rx = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
+                const ry = GRID_COORDS[Math.floor(Math.random() * GRID_COORDS.length)];
+                const segA = Math.floor(Math.random() * 8);
+                let segB;
+                do { segB = Math.floor(Math.random() * 8); }
+                while (segB === segA || isUnwinnablePair(segA, segB));
 
-            if (findSolution(rx, ry, segA, segB) !== null) {
-                startPoint = { x: rx, y: ry };
-                highlightedSegment  = segA;
-                highlightedSegmentB = segB;
-                const [lo, hi] = [Math.min(segA, segB), Math.max(segA, segB)];
-                currentLevelId = `${rx}_${ry}_${lo}_${hi}`;
-                break;
+                if (findSolution(rx, ry, segA, segB) !== null) {
+                    startPoint = { x: rx, y: ry };
+                    highlightedSegment  = segA;
+                    highlightedSegmentB = segB;
+                    const [lo, hi] = [Math.min(segA, segB), Math.max(segA, segB)];
+                    currentLevelId = `${rx}_${ry}_${lo}_${hi}`;
+                    break;
+                }
             }
         }
 
