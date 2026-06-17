@@ -14,7 +14,8 @@ function getSupabase() {
 async function submitTime(levelId, elapsedMs) {
     const db = getSupabase();
     if (!db) return;
-    await db.from('slope_completions').insert({ username: 'player', level_id: levelId, elapsed_ms: elapsedMs });
+    const { error } = await db.from('slope_completions').insert({ username: 'player', level_id: levelId, elapsed_ms: elapsedMs });
+    if (error) console.error('[SFG] insert failed:', error.message);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -677,7 +678,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ok = document.getElementById('success-message');
         if (ok) { ok.style.display = 'block'; ok.textContent = `Solved! Time: ${formatTime(elapsed)} — drag the point to explore, or press \u21BA Reset.`; }
         updateCursor();
-        if (currentLevelId) submitTime(currentLevelId, elapsed).then(() => fetchAndShowAvg(currentLevelId));
+        if (currentLevelId) {
+            const lid = currentLevelId;
+            submitTime(lid, elapsed).finally(() => fetchAndShowAvg(lid));
+        }
     }
 
     // --- Advance targets only (keep start point, world, and equation) ---
