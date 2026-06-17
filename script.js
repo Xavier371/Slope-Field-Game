@@ -656,13 +656,12 @@ document.addEventListener('DOMContentLoaded', () => {
         el.textContent = '…';
         const db = getSupabase();
         if (!db || !levelId) { el.textContent = '—'; return; }
-        const { data } = await db.from('slope_completions').select('elapsed_ms').eq('level_id', levelId);
-        if (data && data.length > 0) {
-            const avg = Math.round(data.reduce((sum, r) => sum + r.elapsed_ms, 0) / data.length);
-            el.textContent = formatTime(avg);
-        } else {
-            el.textContent = formatTime(0);
-        }
+        const { data, error } = await db.from('slope_completions').select('elapsed_ms').eq('level_id', levelId);
+        // Discard stale result if the level has changed since this fetch started
+        if (levelId !== currentLevelId) return;
+        if (error || !data || data.length === 0) { el.textContent = '—'; return; }
+        const avg = Math.round(data.reduce((sum, r) => sum + r.elapsed_ms, 0) / data.length);
+        el.textContent = formatTime(avg);
     }
 
     // --- Update canvas cursor based on game state ---
