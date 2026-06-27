@@ -620,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isResetting = false;
     let introLevelIndex = 0; // first 3 games are always the same fixed levels
     let awaitingUserAction = false; // block re-triggering win while auto-advancing
+    let avgFetchSeq = 0; // incremented on each fetch; guards against stale results for the same level
 
     // --- Timer state ---
     let timerStart = null;
@@ -656,9 +657,10 @@ document.addEventListener('DOMContentLoaded', () => {
         el.textContent = '…';
         const db = getSupabase();
         if (!db || !levelId) { el.textContent = '—'; return; }
+        const mySeq = ++avgFetchSeq;
         const { data, error } = await db.from('slope_completions').select('elapsed_ms').eq('level_id', levelId);
-        // Discard stale result if the level has changed since this fetch started
-        if (levelId !== currentLevelId) return;
+        // Discard stale result if the level has changed or a newer fetch already resolved
+        if (levelId !== currentLevelId || mySeq !== avgFetchSeq) return;
         if (error || !data || data.length === 0) { el.textContent = '—'; return; }
         const avg = Math.round(data.reduce((sum, r) => sum + r.elapsed_ms, 0) / data.length);
         el.textContent = formatTime(avg);
